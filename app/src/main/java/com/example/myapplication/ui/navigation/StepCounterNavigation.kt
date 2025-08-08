@@ -57,7 +57,13 @@ fun StepCounterNavigation() {
             startDestination = "home",
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable("home") { HomeScreen() }
+            composable("home") { 
+                HomeScreen(
+                    onNavigateToStepCounter = { /* Not used in main flow */ },
+                    onNavigateToMoodLog = { /* Not used in main flow */ },
+                    onNavigateToSettings = { navController.navigate("settings") }
+                ) 
+            }
             composable("settings") {
                 SettingsScreen(
                     onNavigateToMoodCalendar = { navController.navigate("mood_calendar") },

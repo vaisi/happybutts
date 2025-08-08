@@ -1,5 +1,6 @@
 // Updated: Cleaned up imports, fixed Configuration.Provider implementation, and ensured only one Application class is used
-// Fixed: Added forced database reset to handle schema corruption issues
+// Updated: Removed forced database reset logic for better reliability
+// Updated: Simplified database initialization
 package com.example.myapplication
 
 import android.app.Activity
@@ -28,11 +29,8 @@ import com.example.myapplication.worker.InactivityCheckWorker
 import java.time.Duration
 import com.example.myapplication.worker.MoodCheckWorker
 import android.content.Context
-import androidx.room.RoomDatabase
-import androidx.sqlite.db.SupportSQLiteDatabase
-import com.example.myapplication.data.database.AppDatabase
-import java.io.File
 import com.example.myapplication.worker.ServiceHealthCheckWorker
+import com.example.myapplication.util.SimpleDataTest
 
 @HiltAndroidApp
 class StepCounterApplication : Application(), Configuration.Provider, Application.ActivityLifecycleCallbacks {
@@ -70,11 +68,9 @@ class StepCounterApplication : Application(), Configuration.Provider, Applicatio
         Log.i(TAG, "Application onCreate started")
         registerActivityLifecycleCallbacks(this)
         
-        // Set up global exception handler to catch migration failures
-        setupGlobalExceptionHandler()
-        
-        // Force database reset if needed
-        forceDatabaseResetIfNeeded()
+        // Test core data functionality
+        Log.i(TAG, "Testing core data functionality")
+        SimpleDataTest.testDataFunctionality(this)
         
         // Schedule the mood update worker
         scheduleMoodUpdateWorker()
@@ -99,155 +95,8 @@ class StepCounterApplication : Application(), Configuration.Provider, Applicatio
         Log.i(TAG, "Application onCreate completed")
     }
 
-    private fun setupGlobalExceptionHandler() {
-        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
-        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            Log.e(TAG, "Uncaught exception in thread: ${thread.name}", throwable)
-            
-            // Check if this is a database migration error
-            if (throwable.message?.contains("Migration didn't properly handle") == true ||
-                throwable.message?.contains("UNIQUE constraint failed") == true ||
-                throwable.message?.contains("SQLiteConstraintException") == true) {
-                
-                Log.w(TAG, "Detected database migration error, triggering reset")
-                val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-                prefs.edit().putBoolean("migration_failed", true).apply()
-                
-                // Reset database immediately
-                resetDatabase()
-            }
-            
-            // Call the default handler
-            defaultHandler?.uncaughtException(thread, throwable)
-        }
-    }
-
-    private fun forceDatabaseResetIfNeeded() {
-        Log.i(TAG, "Checking if database reset is needed")
-        
-        // Check if we have a flag indicating migration issues
-        val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
-        val migrationFailed = prefs.getBoolean("migration_failed", false)
-        
-        if (migrationFailed) {
-            Log.w(TAG, "Migration failed flag detected, forcing database reset")
-            resetDatabase()
-            // Clear the flag
-            prefs.edit().putBoolean("migration_failed", false).apply()
-        } else {
-            // FORCE DATABASE RESET due to schema corruption issues
-            Log.w(TAG, "Forcing database reset due to schema corruption")
-            resetDatabase()
-            
-            // Check if database files exist and might be corrupted
-            val databaseFile = getDatabasePath(AppDatabase.DATABASE_NAME)
-            val databasesDir = File(filesDir, "databases")
-            val dbFileInDir = File(databasesDir, AppDatabase.DATABASE_NAME)
-            
-            // If database files exist, we'll let Room handle the migration
-            // If they don't exist, we're good to go
-            if (databaseFile.exists() || dbFileInDir.exists()) {
-                Log.i(TAG, "Database files exist, will let Room handle migration")
-                
-                // Try a test database access to see if it works
-                try {
-                    val testDatabase = AppDatabase.getInstanceSafely(this)
-                    if (testDatabase == null) {
-                        Log.w(TAG, "Database test access failed, forcing reset")
-                        resetDatabase()
-                    } else {
-                        Log.i(TAG, "Database test access successful")
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Database test access failed with exception", e)
-                    resetDatabase()
-                }
-            } else {
-                Log.i(TAG, "No database files found, fresh start")
-            }
-        }
-    }
-
-    private fun resetDatabase() {
-        Log.w(TAG, "FORCING DATABASE RESET - This will delete all data!")
-        
-        try {
-            // Delete the database file
-            val databaseFile = getDatabasePath(AppDatabase.DATABASE_NAME)
-            if (databaseFile.exists()) {
-                databaseFile.delete()
-                Log.i(TAG, "Deleted database file: ${databaseFile.absolutePath}")
-            }
-            
-            // Also delete any journal files
-            val journalFile = getDatabasePath("${AppDatabase.DATABASE_NAME}-journal")
-            if (journalFile.exists()) {
-                journalFile.delete()
-                Log.i(TAG, "Deleted journal file: ${journalFile.absolutePath}")
-            }
-            
-            // Delete any WAL files
-            val walFile = getDatabasePath("${AppDatabase.DATABASE_NAME}-wal")
-            if (walFile.exists()) {
-                walFile.delete()
-                Log.i(TAG, "Deleted WAL file: ${walFile.absolutePath}")
-            }
-            
-            // Delete any SHM files
-            val shmFile = getDatabasePath("${AppDatabase.DATABASE_NAME}-shm")
-            if (shmFile.exists()) {
-                shmFile.delete()
-                Log.i(TAG, "Deleted SHM file: ${shmFile.absolutePath}")
-            }
-            
-            // Also try to delete from the databases directory
-            val databasesDir = File(filesDir, "databases")
-            if (databasesDir.exists()) {
-                val dbFileInDir = File(databasesDir, AppDatabase.DATABASE_NAME)
-                if (dbFileInDir.exists()) {
-                    dbFileInDir.delete()
-                    Log.i(TAG, "Deleted database file from databases directory: ${dbFileInDir.absolutePath}")
-                }
-                
-                val journalFileInDir = File(databasesDir, "${AppDatabase.DATABASE_NAME}-journal")
-                if (journalFileInDir.exists()) {
-                    journalFileInDir.delete()
-                    Log.i(TAG, "Deleted journal file from databases directory: ${journalFileInDir.absolutePath}")
-                }
-                
-                val walFileInDir = File(databasesDir, "${AppDatabase.DATABASE_NAME}-wal")
-                if (walFileInDir.exists()) {
-                    walFileInDir.delete()
-                    Log.i(TAG, "Deleted WAL file from databases directory: ${walFileInDir.absolutePath}")
-                }
-                
-                val shmFileInDir = File(databasesDir, "${AppDatabase.DATABASE_NAME}-shm")
-                if (shmFileInDir.exists()) {
-                    shmFileInDir.delete()
-                    Log.i(TAG, "Deleted SHM file from databases directory: ${shmFileInDir.absolutePath}")
-                }
-            }
-            
-            // Clear any Room preferences that might store schema info
-            val roomPrefs = getSharedPreferences("room_master_table", Context.MODE_PRIVATE)
-            roomPrefs.edit().clear().apply()
-            Log.i(TAG, "Cleared Room master table preferences")
-            
-            Log.i(TAG, "Database reset completed successfully")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error during database reset", e)
-        }
-    }
-
     private fun scheduleMoodUpdateWorker() {
         Log.i(TAG, "Scheduling mood update worker")
-        
-        // Check if database is accessible before scheduling workers
-        val database = AppDatabase.getInstanceSafely(this)
-        if (database == null) {
-            Log.w(TAG, "Database not accessible, skipping worker scheduling")
-            return
-        }
         
         // Enhanced constraints to ensure worker runs more reliably
         val constraints = Constraints.Builder()
@@ -353,7 +202,12 @@ class StepCounterApplication : Application(), Configuration.Provider, Applicatio
     private fun logCurrentDynamicValues() {
         applicationScope.launch {
             try {
-                val userGoal = userPreferences.dailyGoal.first()
+                val userGoal = try {
+                    userPreferences.dailyGoal.first()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error getting daily goal from preferences, using default", e)
+                    10000 // Default goal
+                }
                 val BASE_GOAL_STEPS = 10000
                 val BASE_STEPS_PER_MOOD = 150
                 val BASE_DECAY_THRESHOLD = 250

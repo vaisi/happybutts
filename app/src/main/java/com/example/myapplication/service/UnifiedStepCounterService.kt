@@ -1,4 +1,5 @@
 // Updated: Added daily reset functionality and improved logging
+// Updated: Added service health monitoring and data validation
 package com.example.myapplication.service
 
 import android.content.Context
@@ -11,6 +12,7 @@ import androidx.health.connect.client.time.TimeRangeFilter
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,6 +30,7 @@ import kotlin.system.measureTimeMillis
 import kotlin.math.max
 import com.example.myapplication.data.repository.InactivityRepository
 import com.example.myapplication.data.repository.StepCountRepository
+import kotlinx.coroutines.CancellationException
 
 @Singleton
 class UnifiedStepCounterService @Inject constructor(
@@ -57,11 +60,19 @@ class UnifiedStepCounterService @Inject constructor(
     private var lastStepCount = 0
     private var isInactivityTracking = false
 
+    // ENHANCED: Service health monitoring
+    private var serviceStartTime = System.currentTimeMillis()
+    private var lastStepUpdate = System.currentTimeMillis()
+    private var isServiceHealthy = true
+    private var healthMonitoringJob: kotlinx.coroutines.Job? = null
+
     companion object {
         private const val EMIT_STEP_THRESHOLD = 1
         private const val EMIT_TIME_THRESHOLD_MS = 5_000L // 5 seconds
         private const val MAX_BACKFILL_DAYS = 30
         private const val INACTIVITY_THRESHOLD_STEPS = 50 // Consider inactive if less than 50 steps in an hour
+        private const val SERVICE_HEALTH_CHECK_INTERVAL_MS = 60_000L // 1 minute
+        private const val SERVICE_STUCK_THRESHOLD_MS = 5 * 60_000L // 5 minutes
     }
 
     private val healthConnectClient by lazy {
@@ -94,6 +105,9 @@ class UnifiedStepCounterService @Inject constructor(
             currentSteps = 0
             lastProcessedDate = today
         }
+
+        // ENHANCED: Start service health monitoring
+        startHealthMonitoring()
 
         // First, try to get steps from hardware detector if available
         if (hardwareStepDetector.isAvailable()) {
@@ -147,6 +161,128 @@ class UnifiedStepCounterService @Inject constructor(
         Log.i(TAG, "=== START STEP COUNTING COMPLETED ===")
     }
 
+    /**
+     * ENHANCED: Start service health monitoring
+     */
+    private fun startHealthMonitoring() {
+        // Cancel existing health monitoring job if it exists
+        healthMonitoringJob?.cancel()
+        
+        // Reset service health state
+        isServiceHealthy = true
+        serviceStartTime = System.currentTimeMillis()
+        lastStepUpdate = System.currentTimeMillis()
+        
+        healthMonitoringJob = serviceScope.launch {
+            try {
+                while (isServiceHealthy) {
+                    try {
+                        delay(SERVICE_HEALTH_CHECK_INTERVAL_MS)
+                        checkServiceHealth()
+                    } catch (e: CancellationException) {
+                        // Normal cancellation, just exit
+                        Log.d(TAG, "Health monitoring cancelled normally")
+                        break
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error in health monitoring", e)
+                        // Continue monitoring even if there's an error
+                        delay(5000) // Wait 5 seconds before retrying
+                    }
+                }
+            } catch (e: CancellationException) {
+                Log.d(TAG, "Health monitoring job cancelled")
+            } catch (e: Exception) {
+                Log.e(TAG, "Fatal error in health monitoring", e)
+            }
+        }
+        Log.i(TAG, "Started service health monitoring")
+    }
+
+    /**
+     * ENHANCED: Check service health and restart if needed
+     */
+    private suspend fun checkServiceHealth() {
+        try {
+            val now = System.currentTimeMillis()
+            val timeSinceLastUpdate = now - lastStepUpdate
+            val timeSinceServiceStart = now - serviceStartTime
+
+            Log.d(TAG, "Service health check: Last update: ${timeSinceLastUpdate}ms ago, Service running: ${timeSinceServiceStart}ms")
+
+            // Check if service appears stuck
+            if (timeSinceLastUpdate > SERVICE_STUCK_THRESHOLD_MS) {
+                Log.w(TAG, "Service appears stuck (no updates for ${timeSinceLastUpdate}ms), attempting restart")
+                restartStepDetection()
+            }
+
+            // Validate data consistency
+            validateAndRecoverStepData()
+        } catch (e: CancellationException) {
+            throw e // Re-throw cancellation exceptions
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in service health check", e)
+        }
+    }
+
+    /**
+     * ENHANCED: Validate step data and recover if needed
+     */
+    private suspend fun validateAndRecoverStepData() {
+        try {
+            val today = LocalDate.now()
+            val currentStepsValue = currentStepCount
+            
+            // Get total from repository for comparison
+            val repoSteps = stepCountRepository.getTodayStepCount().firstOrNull()?.steps ?: 0
+            
+            // Check for significant discrepancies
+            val discrepancy = kotlin.math.abs(currentStepsValue - repoSteps)
+            if (discrepancy > 1000) {
+                Log.w(TAG, "Step data inconsistency detected: current=$currentStepsValue, repo=$repoSteps, discrepancy=$discrepancy")
+                
+                // Use the higher value as the source of truth
+                val correctedSteps = maxOf(currentStepsValue, repoSteps)
+                if (correctedSteps != currentStepsValue) {
+                    Log.i(TAG, "Correcting step count from $currentStepsValue to $correctedSteps")
+                    currentSteps = correctedSteps
+                    lastEmittedStepCount = correctedSteps
+                    lastEmitTimestamp = System.currentTimeMillis()
+                    _stepUpdates.emit(correctedSteps)
+                    onStepDetected?.invoke(correctedSteps)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error validating step data", e)
+        }
+    }
+
+    /**
+     * ENHANCED: Restart step detection when service appears stuck
+     */
+    private suspend fun restartStepDetection() {
+        Log.i(TAG, "=== RESTARTING STEP DETECTION ===")
+        
+        try {
+            // Stop current detection
+            activeDetector?.stopDetection()
+            activeDetector = null
+            
+            // Brief pause
+            delay(1000)
+            
+            // Restart detection
+            selectBestDetector()
+            
+            // Update service start time
+            serviceStartTime = System.currentTimeMillis()
+            lastStepUpdate = System.currentTimeMillis()
+            
+            Log.i(TAG, "Step detection successfully restarted")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to restart step detection", e)
+        }
+    }
+
     private fun startInactivityTracking(initialSteps: Int) {
         if (!isInactivityTracking) {
             isInactivityTracking = true
@@ -178,15 +314,26 @@ class UnifiedStepCounterService @Inject constructor(
 
     fun stopStepCounting() {
         Log.d(TAG, "stopStepCounting: Stopping step counting")
+        
+        // Stop health monitoring first
+        isServiceHealthy = false
+        healthMonitoringJob?.cancel()
+        healthMonitoringJob = null
+        
+        // Stop step detection
         activeDetector?.stopDetection()
         activeDetector = null
         onStepDetected = null
         
         // End inactivity tracking
         serviceScope.launch {
-            inactivityRepository.endInactivityPeriod(currentSteps)
-            isInactivityTracking = false
-            Log.i(TAG, "Stopped inactivity tracking")
+            try {
+                inactivityRepository.endInactivityPeriod(currentSteps)
+                isInactivityTracking = false
+                Log.i(TAG, "Stopped inactivity tracking")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error stopping inactivity tracking", e)
+            }
         }
     }
 
@@ -227,6 +374,9 @@ class UnifiedStepCounterService @Inject constructor(
 
     private fun processStepUpdate(steps: Int) {
         Log.d(TAG, "processStepUpdate: Received step update: $steps from $lastEmittedSource")
+        
+        // Update last step update time for health monitoring
+        lastStepUpdate = System.currentTimeMillis()
         
         // Check for date change
         val currentDate = LocalDate.now()

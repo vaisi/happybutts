@@ -1,4 +1,5 @@
 // Updated: InactivityRepository - now uses global UserPreferences for quiet hours instead of local settings
+// Fixed: Updated to work with new DAO methods using ID instead of date+startTime composite key
 package com.example.myapplication.data.repository
 
 import android.content.Context
@@ -98,7 +99,8 @@ class InactivityRepository @Inject constructor(
         val activePeriod = inactivityDao.getActiveInactivityPeriod(today)
         if (activePeriod != null) {
             val durationHours = ChronoUnit.MINUTES.between(activePeriod.startTime, now) / 60f
-            inactivityDao.endInactivityPeriod(activePeriod.date, activePeriod.startTime, now, durationHours)
+            // Fixed: Use ID instead of date+startTime for update
+            inactivityDao.endInactivityPeriod(activePeriod.id, now, durationHours)
             Log.i(TAG, "Ended inactivity period, duration: ${durationHours}h, steps: $steps")
         }
     }
@@ -146,7 +148,8 @@ class InactivityRepository @Inject constructor(
         val today = LocalDate.now()
         val currentInactivity = inactivityDao.getCurrentConsecutiveInactivity(today)
         currentInactivity?.let {
-            inactivityDao.markNotificationSent(it.date, it.startTime)
+            // Fixed: Use ID instead of date+startTime for update
+            inactivityDao.markNotificationSent(it.id)
             Log.i(TAG, "Marked notification as sent for inactivity period")
         }
     }

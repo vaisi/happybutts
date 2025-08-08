@@ -79,19 +79,15 @@ object ServiceModule {
 
     @Provides
     @Singleton
-    fun provideHourlyStepPoller(
+    fun provideSimpleHourlyAggregator(
         @ApplicationContext context: Context,
         stepCountRepository: StepCountRepository,
-        moodRepository: MoodRepository,
-        hourlyStepsDao: com.example.myapplication.data.database.HourlyStepsDao,
-        unifiedStepCounterService: UnifiedStepCounterService
-    ): HourlyStepPoller {
-        return HourlyStepPoller(
+        hourlyStepsDao: com.example.myapplication.data.database.HourlyStepsDao
+    ): SimpleHourlyAggregator {
+        return SimpleHourlyAggregator(
             context,
             stepCountRepository,
-            moodRepository,
-            hourlyStepsDao,
-            unifiedStepCounterService
+            hourlyStepsDao
         )
     }
 } 

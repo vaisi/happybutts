@@ -166,8 +166,8 @@ class SettingsViewModel @Inject constructor(
                 val previousMood = currentMood.mood
                 Log.i(TAG, "Current mood before decay: $previousMood")
                 
-                // Apply hourly mood decay (simulates 1 hour of inactivity)
-                moodRepository.applyHourlyMoodDecay(0) // 0 steps = inactivity
+                // Apply hourly mood decay for testing
+                moodRepository.applyHourlyMoodUpdate(0, 0)
                 
                 // Get mood after decay
                 val newMood = moodRepository.getCurrentMood().first()

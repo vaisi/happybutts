@@ -39,7 +39,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.myapplication.ui.viewmodel.StepCounterViewModel
-import com.example.myapplication.ui.viewmodel.CharacterState
 import com.example.myapplication.data.model.MoodState
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionState
@@ -132,6 +131,25 @@ fun StepCounterScreen(
     val betweenBarAndStepsSpacer = (screenHeight * 0.20f)
     val imageSize = 180.dp * 1.6f // 60% larger
 
+    // Debug logging for UI state
+    LaunchedEffect(uiState.currentSteps) {
+        Log.d("StepCounterScreen", "UI State updated - Steps: ${uiState.currentSteps}, Mood: ${uiState.currentMood}")
+    }
+
+    // Get the actual current goal from the ViewModel
+    val currentGoal by viewModel.getCurrentGoal().collectAsState(initial = 10000)
+    
+    // Calculate actual values based on current goal
+    val stepsPerMood by viewModel.getStepsPerMood().collectAsState(initial = 100)
+    val decayThreshold by viewModel.getDecayThreshold().collectAsState(initial = 500)
+    val dailyGoal = currentGoal // Use the actual current goal
+
+    // Temporary debug button to fix mood
+    LaunchedEffect(Unit) {
+        // Auto-fix mood calculation on screen load
+        viewModel.fixMoodCalculation()
+    }
+
     // Animated progress value
     val animatedProgress by animateFloatAsState(
         targetValue = moodProgress,
@@ -180,10 +198,6 @@ fun StepCounterScreen(
     val moodMessage = remember(realTimeMood) {
         getRandomMoodMainScreenMessage(realTimeMood)
     }
-
-    val stepsPerMood by viewModel.stepsPerMood.collectAsState()
-    val decayThreshold by viewModel.decayThreshold.collectAsState()
-    val dailyGoal by viewModel.dailyGoal.collectAsState()
 
     Box(
         modifier = Modifier

@@ -1,8 +1,7 @@
-// Updated: MoodUpdateWorker to properly handle hourly updates and ensure accurate mood calculations
-// HYBRID FIX: Now uses database lookup first, then falls back to incremental calculation
-// CRITICAL FIX: Updates lastPersistedSteps to current total steps for accurate incremental calculations
-// This prevents incorrect decay application when steps are above threshold
-// Combines accuracy of recorded data with reliability of incremental calculation
+// Updated: MoodUpdateWorker - Simplified to use consolidated mood calculation methods
+// Fixed: Removed complex hybrid calculation logic
+// Updated: Uses single authoritative mood calculation methods
+// Updated: Removed excessive debug logging for cleaner production code
 package com.example.myapplication.worker
 
 import android.content.Context
@@ -70,7 +69,7 @@ class MoodUpdateWorker @AssistedInject constructor(
                 return Result.success()
             }
             
-            // ENHANCED: Get today's steps from the most accurate source
+            // Get today's steps from the most accurate source
             val todaySteps = try {
                 // Try to get from UnifiedStepCounterService first (most accurate)
                 val serviceSteps = unifiedStepCounterService.currentStepCount
@@ -90,87 +89,39 @@ class MoodUpdateWorker @AssistedInject constructor(
             
             Log.i(TAG, "Current step count: $todaySteps [ID: $workId]")
             
-            // HYBRID FIX: Try database first, fallback to incremental calculation
+            // SIMPLIFIED: Calculate steps for the previous hour
             val previousHour = if (now.hour == 0) 23 else now.hour - 1
             Log.d(TAG, "Recording steps for previous hour: $previousHour [ID: $workId]")
             
-            // Get last recorded total from polling system for recording purposes
+            // Get last recorded total for recording purposes
             val lastRecordedTotal = moodRepository.getLastRecordedTotal()
             Log.d(TAG, "Last recorded total: $lastRecordedTotal [ID: $workId]")
             
-            // HYBRID FIX: Try database first, fallback to incremental calculation
-            val today = LocalDate.now()
+            // SIMPLIFIED: Calculate steps for the previous hour
             val stepsInPreviousHour = if (previousHour == 0) {
                 // First hour of day - use total steps
-                Log.d(TAG, "HYBRID FIX: Hour 0 detected, using total steps: $todaySteps [ID: $workId]")
+                Log.d(TAG, "Hour 0 detected, using total steps: $todaySteps [ID: $workId]")
                 todaySteps
             } else {
-                // Try database first, fallback to incremental calculation
-                val recordedSteps = hourlyStepsDao.getHourlyStepsForHour(today, previousHour)?.steps
-                if (recordedSteps != null && recordedSteps > 0) {
-                    // Database has the data, use it (most accurate)
-                    Log.d(TAG, "HYBRID FIX: Using database recorded steps for hour $previousHour: $recordedSteps [ID: $workId]")
-                    recordedSteps
-                } else {
-                    // Database doesn't have it yet, calculate incrementally
-                    val previousHourBaseline = hourlyStepsDao.getLastRecordedTotalForHour(today, previousHour - 1) ?: 0
-                    val calculatedSteps = todaySteps - previousHourBaseline
-                    Log.d(TAG, "HYBRID FIX: Database empty, calculated incrementally for hour $previousHour: $calculatedSteps (total: $todaySteps, baseline: $previousHourBaseline) [ID: $workId]")
-                    calculatedSteps
-                }
+                // Calculate incremental steps for the previous hour
+                val previousHourBaseline = hourlyStepsDao.getLastRecordedTotalForHour(LocalDate.now(), previousHour - 1) ?: 0
+                val calculatedSteps = todaySteps - previousHourBaseline
+                Log.d(TAG, "Calculated steps for hour $previousHour: $calculatedSteps (total: $todaySteps, baseline: $previousHourBaseline) [ID: $workId]")
+                calculatedSteps
             }
             
-            Log.d(TAG, "HYBRID FIX: Final steps for hour $previousHour: $stepsInPreviousHour [ID: $workId]")
+            Log.d(TAG, "Final steps for hour $previousHour: $stepsInPreviousHour [ID: $workId]")
             
-            // Record the previous hour's steps with total tracking (for future reference)
+            // Record the previous hour's steps
             moodRepository.recordHourlySteps(previousHour, stepsInPreviousHour, todaySteps)
             
-            // Check for and recover any missing hourly data
-            if (moodRepository.checkForMissingHourlyData()) {
-                Log.i(TAG, "Detected missing hourly data, attempting recovery [ID: $workId]")
-                moodRepository.recoverMissingHourlyData(todaySteps)
-            }
-            
-            // Get current mood before update (use clean mood to avoid UI contamination)
-            val baseMood = moodRepository.getCleanMoodForWorker()
-            Log.d(TAG, "Previous mood value: $baseMood [ID: $workId]")
-            
-            // CRITICAL FIX: Use clean mood from database (not contaminated by UI)
-            // This ensures worker uses stable baseline mood
-            Log.i(TAG, "Worker: Using clean mood as base: $baseMood [ID: $workId]")
-            
-            // Apply mood decay and gain for the previous hour using pre-calculated steps
-            Log.d(TAG, "Applying hourly mood decay for hour $previousHour with pre-calculated steps: $stepsInPreviousHour [ID: $workId]")
-            moodRepository.applyHourlyMoodDecayWithSteps(todaySteps, stepsInPreviousHour)
-            
-            // CRITICAL FIX: Update lastPersistedSteps to current total steps for accurate incremental calculations
-            Log.d(TAG, "CRITICAL FIX: Updating lastPersistedSteps to current total: $todaySteps [ID: $workId]")
-            moodRepository.updateSteps(todaySteps)
-            
-            // Get and log the updated mood state
-            val updatedMoodState = moodRepository.getCurrentMood().firstOrNull()
-            val newMood = updatedMoodState?.mood
-            Log.i(TAG, "Mood update completed - Previous: $baseMood, Current: $newMood [ID: $workId]")
-            
-            // IMPROVED: Store timestamp information for UI calculations
-            val currentTime = System.currentTimeMillis()
-            Log.i(TAG, "Worker: Storing update timestamp: $currentTime for hour: $previousHour [ID: $workId]")
+            // SIMPLIFIED: Apply hourly mood update using consolidated method
+            moodRepository.applyHourlyMoodUpdate(stepsInPreviousHour, todaySteps)
             
             // Store worker update data for UI synchronization
+            val currentTime = System.currentTimeMillis()
+            Log.i(TAG, "Worker: Storing update timestamp: $currentTime for hour: $previousHour [ID: $workId]")
             moodRepository.storeLastWorkerUpdate(previousHour, todaySteps, currentTime)
-            
-            // ADDITIONAL: Log to regular system logs for easy searching
-            android.util.Log.i("MOOD_DEBUG", "=== WORKER EXECUTION (HYBRID FIX APPLIED) ===")
-            android.util.Log.i("MOOD_DEBUG", "Worker ID: $workId")
-            android.util.Log.i("MOOD_DEBUG", "Current time: ${now.hour}:${now.minute}")
-            android.util.Log.i("MOOD_DEBUG", "Previous hour recorded: $previousHour")
-            android.util.Log.i("MOOD_DEBUG", "Steps in previous hour (HYBRID CALCULATION): $stepsInPreviousHour")
-            android.util.Log.i("MOOD_DEBUG", "Total steps: $todaySteps")
-            android.util.Log.i("MOOD_DEBUG", "Previous mood: $baseMood")
-            android.util.Log.i("MOOD_DEBUG", "Current mood: $newMood")
-            android.util.Log.i("MOOD_DEBUG", "Mood change: ${(newMood ?: 0) - (baseMood ?: 0)} points")
-            android.util.Log.i("MOOD_DEBUG", "Update timestamp: $currentTime")
-            android.util.Log.i("MOOD_DEBUG", "=== END WORKER EXECUTION ===")
             
             Log.i(TAG, "Work execution completed successfully [ID: $workId]")
             Result.success()

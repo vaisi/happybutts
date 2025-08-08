@@ -1,4 +1,5 @@
 // Updated: Consolidated database module with all DAOs and proper migration
+// Fixed: Removed references to old migrations that no longer exist
 package com.example.myapplication.di
 
 import android.content.Context
@@ -10,8 +11,6 @@ import com.example.myapplication.data.database.HourlyStepsDao
 import com.example.myapplication.data.database.MoodStateDao
 import com.example.myapplication.data.database.StepCountDao
 import com.example.myapplication.data.database.StepDao
-import com.example.myapplication.data.database.MIGRATION_1_2
-import com.example.myapplication.data.database.MIGRATION_2_3
 import com.example.myapplication.data.database.InactivityDao
 import com.example.myapplication.data.database.MoodNotificationDao
 import dagger.Module
@@ -76,11 +75,13 @@ object DatabaseModule {
     }
 
     @Provides
+    @Singleton
     fun provideInactivityDao(database: AppDatabase): InactivityDao {
         return database.inactivityDao()
     }
 
     @Provides
+    @Singleton
     fun provideMoodNotificationDao(database: AppDatabase): MoodNotificationDao {
         return database.moodNotificationDao()
     }

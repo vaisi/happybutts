@@ -1,6 +1,6 @@
 // Updated: Cleaned up imports, fixed Configuration.Provider implementation, and ensured only one Application class is used
-// Fixed: Added forced database reset to handle schema corruption issues
-// Fixed: Prevented infinite loop in error handling by adding cooldown and clearing exception handler
+// Updated: Removed forced database reset logic for better reliability
+// Updated: Simplified error handling
 // Updated: Added comprehensive fallback system for mood decay when workers fail
 // Updated: Added force poll mechanism when app becomes active to catch missed steps
 package com.example.myapplication
@@ -21,7 +21,7 @@ import com.example.myapplication.data.repository.MoodRepository
 import com.example.myapplication.data.repository.StepCountRepository
 import com.example.myapplication.service.UnifiedStepCounterService
 import com.example.myapplication.service.StepCountingService
-import com.example.myapplication.service.HourlyStepPoller
+import com.example.myapplication.service.SimpleHourlyAggregator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -53,7 +53,8 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var stepCounterService: UnifiedStepCounterService
     
-    // REMOVED: @Inject lateinit var hourlyStepPoller: HourlyStepPoller - MoodUpdateWorker handles hourly data recording
+    @Inject
+    lateinit var simpleHourlyAggregator: SimpleHourlyAggregator
     
     private var lastKnownDate = LocalDate.now()
 
@@ -66,9 +67,6 @@ class MainActivity : ComponentActivity() {
             delay(500) // Small delay to ensure app is fully initialized
             startStepCountingService()
         }
-        
-        // Set up error handling for database issues
-        setupErrorHandling()
         
         // Check for date changes on app start
         checkForDateChange()
@@ -88,51 +86,6 @@ class MainActivity : ComponentActivity() {
                     AppNavigation()
                 }
             }
-        }
-    }
-
-    private fun setupErrorHandling() {
-        // Set up a global error handler for this activity
-        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            Log.e(TAG, "Uncaught exception in MainActivity thread: ${thread.name}", throwable)
-            
-            // Check if this is a database-related error
-            if (throwable.message?.contains("Migration didn't properly handle") == true ||
-                throwable.message?.contains("UNIQUE constraint failed") == true ||
-                throwable.message?.contains("SQLiteConstraintException") == true ||
-                throwable.message?.contains("database") == true) {
-                
-                Log.w(TAG, "Detected database error in MainActivity, triggering reset")
-                val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
-                
-                // Check if we've already tried to reset recently to prevent infinite loops
-                val lastResetTime = prefs.getLong("last_database_reset", 0)
-                val currentTime = System.currentTimeMillis()
-                if (currentTime - lastResetTime < 5000) { // 5 second cooldown
-                    Log.w(TAG, "Database reset attempted too recently, letting default handler deal with it")
-                    val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
-                    defaultHandler?.uncaughtException(thread, throwable)
-                    return@setDefaultUncaughtExceptionHandler
-                }
-                
-                prefs.edit()
-                    .putBoolean("migration_failed", true)
-                    .putLong("last_database_reset", currentTime)
-                    .apply()
-                
-                // Clear the exception handler to prevent infinite loops
-                Thread.setDefaultUncaughtExceptionHandler(null)
-                
-                // Run recreate on the main thread
-                runOnUiThread {
-                    recreate()
-                }
-                return@setDefaultUncaughtExceptionHandler
-            }
-            
-            // For other errors, let the default handler deal with it
-            val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
-            defaultHandler?.uncaughtException(thread, throwable)
         }
     }
 
@@ -240,8 +193,8 @@ class MainActivity : ComponentActivity() {
                                 moodRepository.recordHourlySteps(hour, stepsInHour)
                                 
                                 // Apply mood calculation for this hour
-                                val moodGain = moodRepository.calculateMoodFromStepsInPeriod(stepsInHour)
-                                val decay = moodRepository.calculateDecay(hour, stepsInHour, newMood)
+                                val moodGain = moodRepository.calculateMoodGain(stepsInHour)
+                                val decay = moodRepository.calculateMoodDecay(hour, stepsInHour, newMood)
                                 newMood = (newMood + moodGain - decay).coerceIn(0, 130)
                                 
                                 Log.d(TAG, "checkForMissedMoodDecay: Processed missed hour $hour: steps=$stepsInHour, gain=$moodGain, decay=$decay, mood=$newMood")

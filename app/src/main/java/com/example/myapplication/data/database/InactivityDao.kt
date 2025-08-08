@@ -1,5 +1,6 @@
-// Updated: InactivityDao to use date as primary key instead of id
+// Updated: InactivityDao to use auto-incrementing ID as primary key instead of date
 // Fixed: Database constraint issue by using OnConflictStrategy.REPLACE
+// Fixed: Update queries to use ID instead of date+startTime composite key
 package com.example.myapplication.data.database
 
 import androidx.room.*
@@ -29,11 +30,13 @@ interface InactivityDao {
     @Update
     suspend fun updateInactivity(inactivity: InactivityData)
     
-    @Query("UPDATE inactivity_data SET endTime = :endTime, durationHours = :durationHours WHERE date = :date AND startTime = :startTime")
-    suspend fun endInactivityPeriod(date: String, startTime: LocalDateTime, endTime: LocalDateTime, durationHours: Float)
+    // Fixed: Use ID for updates instead of date+startTime composite key
+    @Query("UPDATE inactivity_data SET endTime = :endTime, durationHours = :durationHours WHERE id = :id")
+    suspend fun endInactivityPeriod(id: Long, endTime: LocalDateTime, durationHours: Float)
     
-    @Query("UPDATE inactivity_data SET notificationSent = 1 WHERE date = :date AND startTime = :startTime")
-    suspend fun markNotificationSent(date: String, startTime: LocalDateTime)
+    // Fixed: Use ID for notification marking instead of date+startTime
+    @Query("UPDATE inactivity_data SET notificationSent = 1 WHERE id = :id")
+    suspend fun markNotificationSent(id: Long)
     
     @Query("DELETE FROM inactivity_data WHERE date < :date")
     suspend fun deleteOldInactivityData(date: LocalDate)

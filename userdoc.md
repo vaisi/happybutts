@@ -1,99 +1,145 @@
-# User Documentation
+# Happy Butts App - User Documentation
 
 ## Overview
-This app tracks your daily steps and calculates your mood based on your activity level. The system now uses a simplified architecture that provides accurate step tracking and mood calculation without unnecessary battery drain.
+Happy Butts is an Android app that combines step counting with mood tracking, featuring a cute character whose mood changes based on your daily activity. The app provides notifications to encourage movement and tracks your progress throughout the day.
 
-## How It Works
+## Recent Updates (Phase 2 - Service Consolidation)
 
-### Step Tracking
-- **Real-time tracking**: Uses your phone's built-in step sensors
-- **Background service**: Continues tracking even when the app is closed
-- **Notification**: Shows your current step count and progress toward your goal
-- **Accurate data**: Direct access to hardware sensors for reliable step counting
+### ✅ Enhanced Reliability (August 8, 2025)
+The app has been significantly improved for better reliability and stability:
 
-### Mood Calculation
-- **Hourly updates**: Mood is calculated and updated every hour
-- **Live display**: Shows real-time mood based on your current activity
-- **No artificial limits**: Can handle any number of steps without restrictions
-- **Smart decay**: Applies mood decay only when appropriate (not during quiet hours)
+#### 🔔 **Improved Notifications**
+- **More Reliable**: Notifications now work consistently without requiring app restarts
+- **Better Recovery**: If notifications stop working, the app automatically recovers
+- **Enhanced Delivery**: Notifications are verified to ensure they reach you
+- **Smarter Retry**: If a notification fails, the app tries again with intelligent delays
 
-### Key Features
+#### 🛠️ **Service Stability**
+- **Automatic Recovery**: Services restart automatically if they become unresponsive
+- **Better Error Handling**: The app gracefully handles errors without crashing
+- **Health Monitoring**: Continuous monitoring ensures all features work properly
+- **Background Reliability**: Better performance when the app is in the background
 
-#### 1. **Simplified Architecture**
-- **Eliminated redundant systems**: Removed unnecessary polling that drained battery
-- **Direct calculation**: Uses your actual step count without artificial limits
-- **Better performance**: No more 2-minute polling cycles
-- **More accurate**: Direct access to live step data
+#### 📊 **Data Consistency**
+- **Accurate Step Counting**: Fixed issues with inflated step counts in hourly progress
+- **Reliable Mood Tracking**: Mood calculations now use accurate step data
+- **Consistent UI**: All screens show the same data without discrepancies
+- **Better Synchronization**: Data stays consistent across all app features
 
-#### 2. **Real-time Updates**
-- **Live step count**: Updates in real-time as you walk
-- **Live mood display**: Shows current mood based on your activity
-- **Notification updates**: Always shows your current progress
-- **No delays**: Immediate feedback on your activity
+## Key Features
 
-#### 3. **Smart Mood System**
-- **Database storage**: Permanent record of your mood with decay applied
-- **Live calculation**: UI shows real-time mood based on current steps
-- **No artificial limits**: Can handle 1000+ steps without restrictions
-- **Accurate tracking**: Properly accounts for time passed and step gains
+### 🚶‍♂️ **Step Counting**
+- **Multiple Sources**: Uses hardware sensors, accelerometer, and Health Connect
+- **Accurate Tracking**: Reliable step detection with automatic fallbacks
+- **Daily Goals**: Set and track your daily step goals
+- **Progress Visualization**: See your progress with visual indicators
 
-### System Components
+### 😊 **Mood Tracking**
+- **Dynamic Character**: Your character's mood changes based on activity
+- **Visual Feedback**: See mood changes through character animations
+- **Mood History**: Track your mood patterns over time
+- **Calendar View**: View your mood history in a calendar format
 
-#### Core Services:
-- **UnifiedStepCounterService**: Provides real-time step data
-- **MoodUpdateWorker**: Handles hourly mood calculations and data recording
-- **StepCountingService**: Manages background service and notifications
+### 🔔 **Smart Notifications**
+- **Mood-Based Alerts**: Get notified when your character's mood drops
+- **Inactivity Reminders**: Receive gentle reminders to move when inactive
+- **Customizable Settings**: Control notification frequency and timing
+- **Quiet Hours**: Set times when notifications are silenced
 
-#### Data Flow:
-```
-Hardware Sensors → Real-time Step Data → Live Mood Calculation → UI Display
-MoodUpdateWorker → Hourly Data Recording → Database Storage
-```
+### ⚙️ **Settings & Customization**
+- **Daily Goals**: Set your personal step goals
+- **Notification Preferences**: Customize when and how you receive notifications
+- **Quiet Hours**: Define times when notifications are disabled
+- **Data Management**: View and manage your step and mood data
 
-### Troubleshooting
+## How to Use
 
-#### If steps aren't being counted:
-1. Check that the app has permission to access activity recognition
-2. Ensure the notification is showing (indicates service is running)
-3. Try restarting the app
+### Getting Started
+1. **Install the App**: Download and install Happy Butts from the app store
+2. **Grant Permissions**: Allow activity recognition and notification permissions
+3. **Set Your Goal**: Choose your daily step goal (default: 10,000 steps)
+4. **Start Moving**: The app will automatically track your steps and update your character's mood
 
-#### If mood seems incorrect:
-1. The system calculates mood based on your step count and time passed
-2. Mood decay is applied hourly for inactivity
-3. Mood gain is calculated based on your actual steps taken
-4. No artificial limits prevent realistic mood gains
+### Understanding Your Character's Mood
+- **Happy (91-130)**: Your character is very happy and energetic
+- **Content (76-90)**: Your character is in a good mood
+- **Neutral (61-75)**: Your character is in a balanced state
+- **Tired (46-60)**: Your character is getting tired
+- **Exhausted (31-45)**: Your character needs more activity
+- **Annoyed (21-30)**: Your character is getting frustrated
+- **Sad (11-20)**: Your character is feeling down
+- **Miserable (0-10)**: Your character is very unhappy
 
-#### If the app was closed for hours:
-1. The system will calculate the correct mood when you reopen
-2. It accounts for steps taken while the app was closed
-3. It applies appropriate decay for the time passed
-4. The notification should show your current step count
+### Managing Notifications
+- **Mood Notifications**: Receive alerts when your character's mood drops significantly
+- **Inactivity Alerts**: Get reminded to move when you've been inactive
+- **Customize Timing**: Set quiet hours when you don't want notifications
+- **Adjust Frequency**: Control how often you receive notifications
 
-### Database Queries (for debugging)
+### Viewing Your Progress
+- **Home Screen**: See current steps, mood, and daily progress
+- **Calendar View**: Check your mood history over time
+- **Settings**: Access all customization options
+- **Data Export**: View detailed step and mood data
 
-To check your step data:
-```sql
-SELECT * FROM hourly_steps WHERE date = '2025-08-04' ORDER BY hour;
-```
+## Troubleshooting
 
-To check your mood data:
-```sql
-SELECT * FROM mood_states WHERE date = '2025-08-04';
-```
+### Notifications Not Working
+- **Check Permissions**: Ensure notification permissions are granted
+- **Restart App**: Try closing and reopening the app
+- **Check Settings**: Verify notification settings in the app
+- **System Settings**: Check if notifications are enabled in Android settings
 
-### Performance Benefits
+### Step Counting Issues
+- **Grant Permissions**: Make sure activity recognition permission is allowed
+- **Check Sensors**: Ensure your device has step counting sensors
+- **Restart Service**: The app will automatically restart step counting if needed
+- **Health Connect**: If available, enable Health Connect for better accuracy
 
-#### Battery Life:
-- **No unnecessary polling**: Eliminated 2-minute polling cycles
-- **Efficient background processing**: Only runs when needed
-- **Smart scheduling**: Workers run at optimal times
+### App Performance
+- **Background Usage**: The app works in the background but may be limited by system settings
+- **Battery Optimization**: Add the app to battery optimization exceptions if needed
+- **Storage**: Ensure you have sufficient storage space
+- **Updates**: Keep the app updated for the latest improvements
 
-#### Accuracy:
-- **Direct sensor access**: Uses hardware step sensors directly
-- **No artificial limits**: Can handle any realistic step count
-- **Proper time tracking**: Accounts for hours passed correctly
+## Privacy & Data
 
-#### Reliability:
-- **Simplified architecture**: Fewer moving parts means fewer failures
-- **Better error handling**: Graceful recovery from interruptions
-- **Data consistency**: Single source of truth for step data 
+### Data Collection
+- **Step Counts**: Your daily step data is stored locally on your device
+- **Mood Data**: Character mood calculations are based on your activity
+- **Settings**: Your preferences are saved locally
+- **No Personal Data**: The app doesn't collect personal information
+
+### Data Storage
+- **Local Storage**: All data is stored on your device
+- **No Cloud Sync**: Data is not uploaded to external servers
+- **Data Export**: You can view your data within the app
+- **Data Deletion**: Uninstalling the app removes all data
+
+## Support
+
+### Getting Help
+- **In-App Settings**: Check the settings screen for configuration options
+- **System Logs**: The app provides detailed logs for troubleshooting
+- **Permissions**: Ensure all required permissions are granted
+- **Updates**: Keep the app updated for the latest fixes and improvements
+
+### Known Issues
+- **Background Limitations**: Android may limit background processing
+- **Sensor Variations**: Step counting accuracy may vary by device
+- **Notification Delays**: System may delay notifications for battery optimization
+- **Health Connect**: Requires Android 6+ and Health Connect app
+
+## Version History
+
+### Version 2.0 (August 8, 2025) - Phase 2 Complete
+- ✅ **Enhanced Reliability**: Improved notification and service stability
+- ✅ **Better Error Handling**: Graceful recovery from service failures
+- ✅ **Accurate Data**: Fixed step counting and mood calculation issues
+- ✅ **Improved Performance**: Better background operation and battery efficiency
+
+### Version 1.0 (Initial Release)
+- 🚶‍♂️ **Step Counting**: Basic step tracking functionality
+- 😊 **Mood Tracking**: Character mood based on activity
+- 🔔 **Notifications**: Basic mood and inactivity alerts
+- ⚙️ **Settings**: Basic customization options 

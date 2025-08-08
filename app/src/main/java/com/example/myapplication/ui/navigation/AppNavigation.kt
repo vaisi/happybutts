@@ -1,4 +1,5 @@
 // Updated: Added loading spinner while onboarding status is loading from DataStore
+// Updated: Using EnhancedMoodCalendarScreen for better UX with weekly and daily views
 package com.example.myapplication.ui.navigation
 
 import androidx.compose.runtime.*
@@ -73,7 +74,7 @@ fun AppNavigation(
             )
         }
         composable(Screen.MoodCalendar) {
-            MoodCalendarScreen(
+            EnhancedMoodCalendarScreen(
                 onNavigateBack = {
                     navController.popBackStack()
                 }
